@@ -1,10 +1,23 @@
 import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
-import { Icon, DivIcon } from "leaflet";
+import L from "leaflet";
 import { MapPin, Shield, AlertTriangle, Navigation, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import "leaflet/dist/leaflet.css";
+
+// Fix default marker icon issue
+import icon from "leaflet/dist/images/marker-icon.png";
+import iconShadow from "leaflet/dist/images/marker-shadow.png";
+
+const DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
+L.Marker.prototype.options.icon = DefaultIcon;
 
 interface Location {
   id: string;
@@ -29,13 +42,12 @@ const createCustomIcon = (type: string) => {
     danger: "#ef4444",
     hospital: "#3b82f6",
     police: "#f59e0b",
-    user: "#6366f1",
   };
 
-  return new DivIcon({
+  return L.divIcon({
     className: "custom-marker",
     html: `<div style="
-      background-color: ${colors[type] || colors.user};
+      background-color: ${colors[type] || "#6366f1"};
       width: 32px;
       height: 32px;
       border-radius: 50%;
@@ -44,21 +56,14 @@ const createCustomIcon = (type: string) => {
       justify-content: center;
       border: 3px solid white;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    ">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2">
-        ${type === "shelter" ? '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>' : ''}
-        ${type === "danger" ? '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>' : ''}
-        ${type === "hospital" ? '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>' : ''}
-        ${type === "police" ? '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>' : ''}
-      </svg>
-    </div>`,
+    "></div>`,
     iconSize: [32, 32],
     iconAnchor: [16, 32],
     popupAnchor: [0, -32],
   });
 };
 
-const userIcon = new DivIcon({
+const userIcon = L.divIcon({
   className: "user-marker",
   html: `<div style="
     background-color: #6366f1;
@@ -87,7 +92,7 @@ const LocationToCenter = ({ location }: { location: Location | null }) => {
 const DisasterMap = () => {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
-  const [userPosition] = useState<[number, number]>([40.7128, -74.006]);
+  const userPosition: [number, number] = [40.7128, -74.006];
 
   const filters = [
     { id: "all", label: "All", icon: Layers },
