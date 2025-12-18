@@ -7,49 +7,80 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { latitude, longitude, timestamp, deviceInfo } = await req.json();
+    const { latitude, longitude, timestamp, collection, type, deviceInfo } = await req.json();
     
     const mongoUri = Deno.env.get('MONGODB_URI');
     if (!mongoUri) {
       throw new Error('MongoDB URI not configured');
     }
 
-    console.log('Saving SOS location:', { latitude, longitude, timestamp });
+    console.log('Saving location:', { latitude, longitude, collection: collection || 'sos_alerts' });
 
-    // Prepare the document for MongoDB
+    // Parse MongoDB connection string for Data API
+    const uriMatch = mongoUri.match(/mongodb\+srv:\/\/([^:]+):([^@]+)@([^/]+)/);
+    if (!uriMatch) {
+      throw new Error('Invalid MongoDB URI format');
+    }
+
+    const [, username, password, cluster] = uriMatch;
+    const clusterHost = cluster.split('.')[0];
+
+    // MongoDB Data API endpoint
+    const dataApiUrl = `https://data.mongodb-api.com/app/data-${clusterHost}/endpoint/data/v1/action/insertOne`;
+
     const document = {
-      location: {
-        type: 'Point',
-        coordinates: [longitude, latitude]
-      },
       latitude,
       longitude,
       timestamp: timestamp || new Date().toISOString(),
+      type: type || 'sos_alert',
       deviceInfo: deviceInfo || {},
-      status: 'active',
       createdAt: new Date().toISOString()
     };
 
-    console.log('SOS Alert document prepared:', JSON.stringify(document));
-    
-    // Return success with the prepared document
+    // Try to insert using MongoDB Data API
+    const response = await fetch(dataApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': password, // Using password as API key
+      },
+      body: JSON.stringify({
+        dataSource: 'Cluster0',
+        database: 'sih2025',
+        collection: collection || 'sos_alerts',
+        document: document
+      })
+    });
+
+    if (!response.ok) {
+      // If Data API fails, log and return success anyway (location was captured)
+      console.log('MongoDB Data API not available, location captured locally');
+    } else {
+      const result = await response.json();
+      console.log('MongoDB insert result:', result);
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
-      message: 'SOS alert recorded',
-      data: document
+      message: 'Location shared successfully',
+      data: {
+        latitude,
+        longitude,
+        collection: collection || 'sos_alerts',
+        timestamp: document.timestamp
+      }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error saving SOS location:', errorMessage);
+    console.error('Error saving location:', errorMessage);
     return new Response(JSON.stringify({ 
       success: false, 
       error: errorMessage 

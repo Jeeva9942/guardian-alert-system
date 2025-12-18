@@ -12,6 +12,7 @@ const SOSButton = () => {
   const [isSent, setIsSent] = useState(false);
   const [holdProgress, setHoldProgress] = useState(0);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isSharingLocation, setIsSharingLocation] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -77,6 +78,34 @@ const SOSButton = () => {
       setIsSent(true); // Still show success UI but with the option to call
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleShareLocation = async () => {
+    setIsSharingLocation(true);
+    try {
+      const location = await getCurrentLocation();
+      setUserLocation(location);
+      
+      const { data, error } = await supabase.functions.invoke('save-sos-location', {
+        body: {
+          latitude: location.lat,
+          longitude: location.lng,
+          timestamp: new Date().toISOString(),
+          collection: 'locations',
+          type: 'location_share'
+        }
+      });
+
+      if (error) throw error;
+      
+      console.log('Location shared successfully:', data);
+      toast.success("Location shared successfully!");
+    } catch (error) {
+      console.error('Error sharing location:', error);
+      toast.error("Failed to share location. Please try again.");
+    } finally {
+      setIsSharingLocation(false);
     }
   };
 
@@ -224,9 +253,15 @@ const SOSButton = () => {
         <Button 
           variant="outline" 
           className="w-full justify-start gap-3"
+          onClick={handleShareLocation}
+          disabled={isSharingLocation}
         >
-          <MapPin className="w-5 h-5 text-success" />
-          <span>Share My Location</span>
+          {isSharingLocation ? (
+            <Loader2 className="w-5 h-5 text-success animate-spin" />
+          ) : (
+            <MapPin className="w-5 h-5 text-success" />
+          )}
+          <span>{isSharingLocation ? "Sharing..." : "Share My Location"}</span>
         </Button>
       </div>
 
