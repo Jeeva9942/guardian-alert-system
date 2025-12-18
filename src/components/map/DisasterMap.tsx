@@ -1,7 +1,10 @@
-import { useState } from "react";
-import { MapPin, Shield, AlertTriangle, Navigation, Layers, ZoomIn, ZoomOut } from "lucide-react";
+import { useState, useEffect } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { Icon, DivIcon } from "leaflet";
+import { MapPin, Shield, AlertTriangle, Navigation, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import "leaflet/dist/leaflet.css";
 
 interface Location {
   id: string;
@@ -20,9 +23,71 @@ const mockLocations: Location[] = [
   { id: "5", name: "Community Center", type: "shelter", lat: 40.708, lng: -74.012, distance: "1.5 km" },
 ];
 
+const createCustomIcon = (type: string) => {
+  const colors: Record<string, string> = {
+    shelter: "#22c55e",
+    danger: "#ef4444",
+    hospital: "#3b82f6",
+    police: "#f59e0b",
+    user: "#6366f1",
+  };
+
+  return new DivIcon({
+    className: "custom-marker",
+    html: `<div style="
+      background-color: ${colors[type] || colors.user};
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    ">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2">
+        ${type === "shelter" ? '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>' : ''}
+        ${type === "danger" ? '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>' : ''}
+        ${type === "hospital" ? '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>' : ''}
+        ${type === "police" ? '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>' : ''}
+      </svg>
+    </div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -32],
+  });
+};
+
+const userIcon = new DivIcon({
+  className: "user-marker",
+  html: `<div style="
+    background-color: #6366f1;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.3), 0 2px 8px rgba(0,0,0,0.3);
+  "></div>`,
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+});
+
+const LocationToCenter = ({ location }: { location: Location | null }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (location) {
+      map.flyTo([location.lat, location.lng], 15, { duration: 0.5 });
+    }
+  }, [location, map]);
+  
+  return null;
+};
+
 const DisasterMap = () => {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [userPosition] = useState<[number, number]>([40.7128, -74.006]);
 
   const filters = [
     { id: "all", label: "All", icon: Layers },
@@ -38,7 +103,7 @@ const DisasterMap = () => {
   const getLocationStyle = (type: string) => {
     switch (type) {
       case "shelter": return "bg-success text-success-foreground";
-      case "danger": return "bg-destructive text-destructive-foreground animate-pulse";
+      case "danger": return "bg-destructive text-destructive-foreground";
       case "hospital": return "bg-primary text-primary-foreground";
       case "police": return "bg-warning text-warning-foreground";
       default: return "bg-muted text-muted-foreground";
@@ -64,72 +129,52 @@ const DisasterMap = () => {
       </div>
 
       {/* Map Container */}
-      <div className="relative rounded-xl overflow-hidden border border-border bg-card aspect-[4/3]">
-        {/* Placeholder Map Background */}
-        <div className="absolute inset-0 bg-gradient-dark">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `
-              linear-gradient(rgba(59, 130, 246, 0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(59, 130, 246, 0.1) 1px, transparent 1px)
-            `,
-            backgroundSize: '40px 40px'
-          }} />
+      <div className="relative rounded-xl overflow-hidden border border-border bg-white aspect-[4/3]">
+        <MapContainer
+          center={userPosition}
+          zoom={14}
+          style={{ height: "100%", width: "100%" }}
+          zoomControl={true}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
           
-          {/* Mock Map Markers */}
-          <div className="absolute inset-0 p-8">
-            {filteredLocations.map((location, index) => (
-              <button
-                key={location.id}
-                onClick={() => setSelectedLocation(location)}
-                className={cn(
-                  "absolute w-8 h-8 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-125",
-                  getLocationStyle(location.type),
-                  selectedLocation?.id === location.id && "ring-2 ring-foreground scale-125"
-                )}
-                style={{
-                  left: `${20 + (index * 15) % 60}%`,
-                  top: `${15 + (index * 20) % 60}%`,
-                }}
-              >
-                {location.type === "shelter" && <Shield className="w-4 h-4" />}
-                {location.type === "danger" && <AlertTriangle className="w-4 h-4" />}
-                {location.type === "hospital" && <MapPin className="w-4 h-4" />}
-                {location.type === "police" && <Shield className="w-4 h-4" />}
-              </button>
-            ))}
-            
-            {/* User Location */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-              <div className="w-4 h-4 bg-primary rounded-full shadow-glow" />
-              <div className="absolute inset-0 w-4 h-4 bg-primary rounded-full animate-ping opacity-75" />
-            </div>
-          </div>
-        </div>
+          {/* User Location Marker */}
+          <Marker position={userPosition} icon={userIcon}>
+            <Popup>
+              <div className="text-center font-medium">Your Location</div>
+            </Popup>
+          </Marker>
 
-        {/* Map Controls */}
-        <div className="absolute right-3 top-3 flex flex-col gap-2">
-          <Button variant="glass" size="icon" className="h-8 w-8">
-            <ZoomIn className="w-4 h-4" />
-          </Button>
-          <Button variant="glass" size="icon" className="h-8 w-8">
-            <ZoomOut className="w-4 h-4" />
-          </Button>
-          <Button variant="glass" size="icon" className="h-8 w-8">
-            <Navigation className="w-4 h-4" />
-          </Button>
-        </div>
+          {/* Location Markers */}
+          {filteredLocations.map((location) => (
+            <Marker
+              key={location.id}
+              position={[location.lat, location.lng]}
+              icon={createCustomIcon(location.type)}
+              eventHandlers={{
+                click: () => setSelectedLocation(location),
+              }}
+            >
+              <Popup>
+                <div className="text-center">
+                  <div className="font-medium">{location.name}</div>
+                  <div className="text-xs text-gray-500 capitalize">{location.type}</div>
+                  <div className="text-xs text-blue-600">{location.distance}</div>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
 
-        {/* Map Note */}
-        <div className="absolute bottom-3 left-3 right-3">
-          <div className="glass rounded-lg px-3 py-2 text-xs text-muted-foreground">
-            📍 Add Mapbox API key for live map integration
-          </div>
-        </div>
+          <LocationToCenter location={selectedLocation} />
+        </MapContainer>
       </div>
 
       {/* Selected Location Info */}
       {selectedLocation && (
-        <div className="glass rounded-xl p-4 animate-slide-up">
+        <div className="bg-card rounded-xl p-4 border border-border animate-slide-up">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-semibold">{selectedLocation.name}</h3>
@@ -142,8 +187,8 @@ const DisasterMap = () => {
               <Navigation className="w-4 h-4 mr-1" />
               Navigate
             </Button>
-            <Button variant="outline" size="sm">
-              Details
+            <Button variant="outline" size="sm" onClick={() => setSelectedLocation(null)}>
+              Close
             </Button>
           </div>
         </div>
