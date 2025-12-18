@@ -23,12 +23,13 @@ interface Location {
   distance: string;
 }
 
+// India-focused locations (centered around Delhi)
 const mockLocations: Location[] = [
-  { id: "1", name: "Central Emergency Shelter", type: "shelter", lat: 40.7128, lng: -74.006, distance: "0.5 km" },
-  { id: "2", name: "City Hospital", type: "hospital", lat: 40.715, lng: -74.009, distance: "1.2 km" },
-  { id: "3", name: "Police Station #12", type: "police", lat: 40.711, lng: -74.003, distance: "0.8 km" },
-  { id: "4", name: "Flood Zone A", type: "danger", lat: 40.718, lng: -74.001, distance: "2.1 km" },
-  { id: "5", name: "Community Center", type: "shelter", lat: 40.708, lng: -74.012, distance: "1.5 km" },
+  { id: "1", name: "NDRF Emergency Shelter", type: "shelter", lat: 28.6139, lng: 77.2090, distance: "0.5 km" },
+  { id: "2", name: "AIIMS Hospital", type: "hospital", lat: 28.5672, lng: 77.2100, distance: "1.2 km" },
+  { id: "3", name: "Delhi Police HQ", type: "police", lat: 28.6280, lng: 77.2190, distance: "0.8 km" },
+  { id: "4", name: "Yamuna Flood Zone", type: "danger", lat: 28.6508, lng: 77.2319, distance: "2.1 km" },
+  { id: "5", name: "Community Relief Center", type: "shelter", lat: 28.5921, lng: 77.2290, distance: "1.5 km" },
 ];
 
 const createCustomIcon = (type: string) => {
@@ -87,7 +88,8 @@ const LocationToCenter = ({ location }: { location: Location | null }) => {
 const DisasterMap = () => {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
-  const userPosition: [number, number] = [40.7128, -74.006];
+  // Default position centered on India (Delhi)
+  const userPosition: [number, number] = [28.6139, 77.2090];
 
   const filters = [
     { id: "all", label: "All", icon: Layers },

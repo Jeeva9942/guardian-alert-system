@@ -1,1 +1,4 @@
 project_id = "mnbjaycynzfmtiyjzczv"
+
+[functions.save-sos-location]
+verify_jwt = false

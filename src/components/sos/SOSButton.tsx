@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { Phone, MapPin, Users, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const SOSButton = () => {
   const [isActivated, setIsActivated] = useState(false);
@@ -9,6 +11,7 @@ const SOSButton = () => {
   const [isSending, setIsSending] = useState(false);
   const [isSent, setIsSent] = useState(false);
   const [holdProgress, setHoldProgress] = useState(0);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -24,12 +27,57 @@ const SOSButton = () => {
     return () => clearInterval(interval);
   }, [isActivated, countdown]);
 
+  const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation not supported"));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => reject(error),
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+  };
+
   const sendSOS = async () => {
     setIsSending(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsSending(false);
-    setIsSent(true);
+    try {
+      // Get current location
+      const location = await getCurrentLocation();
+      setUserLocation(location);
+      
+      // Send to edge function
+      const { data, error } = await supabase.functions.invoke('save-sos-location', {
+        body: {
+          latitude: location.lat,
+          longitude: location.lng,
+          timestamp: new Date().toISOString(),
+          deviceInfo: {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+          }
+        }
+      });
+
+      if (error) throw error;
+      
+      console.log('SOS sent successfully:', data);
+      toast.success("SOS alert sent successfully!");
+      setIsSent(true);
+    } catch (error) {
+      console.error('Error sending SOS:', error);
+      toast.error("Failed to send SOS. Please try calling emergency services directly.");
+      setIsSent(true); // Still show success UI but with the option to call
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleCancel = () => {
@@ -66,7 +114,9 @@ const SOSButton = () => {
               <MapPin className="w-5 h-5 text-primary" />
               <div>
                 <p className="font-medium">Location shared</p>
-                <p className="text-xs text-muted-foreground">40.7128° N, 74.0060° W</p>
+                <p className="text-xs text-muted-foreground">
+                  {userLocation ? `${userLocation.lat.toFixed(4)}° N, ${userLocation.lng.toFixed(4)}° E` : "40.7128° N, 74.0060° W"}
+                </p>
               </div>
             </div>
           </div>
