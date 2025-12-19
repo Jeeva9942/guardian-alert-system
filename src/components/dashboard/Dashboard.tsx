@@ -1,10 +1,16 @@
-import { AlertTriangle, CloudRain, Wind, Thermometer, Users, Shield, TrendingUp, Activity, MapPin, Bell, Clock, Droplets, Eye, Gauge, RefreshCw, Loader2, CloudSun, Cloud, CloudSnow, CloudLightning, Sun, CloudFog } from "lucide-react";
+import { AlertTriangle, CloudRain, Wind, Thermometer, Users, Shield, TrendingUp, Activity, MapPin, Bell, Clock, Droplets, Eye, Gauge, RefreshCw, Loader2, CloudSun, Cloud, CloudSnow, CloudLightning, Sun, CloudFog, ChevronDown } from "lucide-react";
 import StatCard from "./StatCard";
 import AlertBanner from "./AlertBanner";
 import QuickActions from "./QuickActions";
 import { useState } from "react";
 import { useWeather } from "@/hooks/useWeather";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface DashboardProps {
   onNavigate: (tab: string) => void;
@@ -45,6 +51,7 @@ const getRiskLevel = (weather: string, windSpeed: number, alerts: any[]) => {
 
 const Dashboard = ({ onNavigate }: DashboardProps) => {
   const [showAlert, setShowAlert] = useState(true);
+  const [forecastDays, setForecastDays] = useState(3);
   const { weather, loading, error, refresh } = useWeather();
 
   const handleQuickAction = (actionId: string) => {
@@ -247,25 +254,61 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
         )}
       </section>
 
-      {/* 5-Day Forecast */}
+      {/* Forecast Section */}
       {weather && weather.forecast.length > 0 && (
         <section className="bg-card rounded-xl p-4 border border-border">
-          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <CloudSun className="w-5 h-5 text-primary" />
-            Forecast
-          </h2>
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {weather.forecast.map((day, index) => {
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <CloudSun className="w-5 h-5 text-primary" />
+              Forecast
+            </h2>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 gap-1">
+                  {forecastDays} Days
+                  <ChevronDown className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {[3, 5, 7].map((days) => (
+                  <DropdownMenuItem
+                    key={days}
+                    onClick={() => setForecastDays(days)}
+                    className={forecastDays === days ? "bg-accent" : ""}
+                  >
+                    {days} Days
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-3">
+            {weather.forecast.slice(0, forecastDays).map((day, index) => {
               const ForecastIcon = getWeatherIcon(day.weather);
               const date = new Date(day.date * 1000);
               return (
-                <div key={index} className="flex-shrink-0 text-center p-3 bg-muted/50 rounded-lg min-w-[80px]">
-                  <p className="text-xs text-muted-foreground mb-1">
+                <div 
+                  key={index} 
+                  className="relative overflow-hidden text-center p-4 rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 hover:border-primary/40 transition-all duration-300 hover:scale-[1.02]"
+                >
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+                  
+                  <p className="text-sm font-medium text-foreground mb-2">
                     {index === 0 ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short' })}
                   </p>
-                  <ForecastIcon className="w-6 h-6 mx-auto text-primary mb-1" />
-                  <p className="text-xs font-medium">{day.temp_max}°</p>
-                  <p className="text-xs text-muted-foreground">{day.temp_min}°</p>
+                  
+                  <div className="relative z-10 w-12 h-12 mx-auto mb-2 flex items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5">
+                    <ForecastIcon className="w-6 h-6 text-primary" />
+                  </div>
+                  
+                  <p className="text-xl font-bold text-foreground">{day.temp_max}°</p>
+                  <p className="text-sm text-muted-foreground">{day.temp_min}°</p>
+                  
+                  <div className="mt-2 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                    <Droplets className="w-3 h-3" />
+                    <span>{day.humidity}%</span>
+                  </div>
                 </div>
               );
             })}
