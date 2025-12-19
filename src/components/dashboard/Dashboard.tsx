@@ -1,15 +1,51 @@
-import { AlertTriangle, CloudRain, Wind, Thermometer, Users, Shield, TrendingUp, Activity, MapPin, Bell, Clock, Droplets, Eye, Gauge } from "lucide-react";
+import { AlertTriangle, CloudRain, Wind, Thermometer, Users, Shield, TrendingUp, Activity, MapPin, Bell, Clock, Droplets, Eye, Gauge, RefreshCw, Loader2, CloudSun, Cloud, CloudSnow, CloudLightning, Sun, CloudFog } from "lucide-react";
 import StatCard from "./StatCard";
 import AlertBanner from "./AlertBanner";
 import QuickActions from "./QuickActions";
 import { useState } from "react";
+import { useWeather } from "@/hooks/useWeather";
+import { Button } from "@/components/ui/button";
 
 interface DashboardProps {
   onNavigate: (tab: string) => void;
 }
 
+const getWeatherIcon = (weather: string) => {
+  switch (weather.toLowerCase()) {
+    case 'thunderstorm':
+      return CloudLightning;
+    case 'drizzle':
+    case 'rain':
+      return CloudRain;
+    case 'snow':
+      return CloudSnow;
+    case 'mist':
+    case 'fog':
+    case 'haze':
+      return CloudFog;
+    case 'clouds':
+      return Cloud;
+    case 'clear':
+      return Sun;
+    default:
+      return CloudSun;
+  }
+};
+
+const getRiskLevel = (weather: string, windSpeed: number, alerts: any[]) => {
+  if (alerts.length > 0) return { level: 'High', variant: 'danger' as const };
+  if (weather.toLowerCase().includes('thunder') || weather.toLowerCase().includes('storm')) {
+    return { level: 'High', variant: 'danger' as const };
+  }
+  if (windSpeed > 50 || weather.toLowerCase() === 'rain') {
+    return { level: 'Moderate', variant: 'warning' as const };
+  }
+  return { level: 'Low', variant: 'success' as const };
+};
+
 const Dashboard = ({ onNavigate }: DashboardProps) => {
   const [showAlert, setShowAlert] = useState(true);
+  const { weather, loading, error, refresh } = useWeather();
 
   const handleQuickAction = (actionId: string) => {
     switch (actionId) {
@@ -24,50 +60,92 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
     }
   };
 
+  const risk = weather ? getRiskLevel(weather.current.weather, weather.current.wind_speed, weather.alerts) : { level: 'Unknown', variant: 'default' as const };
+  const WeatherIconComponent = weather ? getWeatherIcon(weather.current.weather) : CloudSun;
+
   return (
     <div className="space-y-6 animate-slide-up">
-      {/* Active Alert Banner */}
-      {showAlert && (
+      {/* Weather Alerts from API */}
+      {weather?.alerts && weather.alerts.length > 0 && weather.alerts.map((alert, index) => (
         <AlertBanner
-          title="Flash Flood Warning"
-          message="Heavy rainfall expected in your area. Stay alert and be prepared to evacuate."
-          severity="warning"
+          key={index}
+          title={alert.event}
+          message={alert.description.slice(0, 150) + (alert.description.length > 150 ? '...' : '')}
+          severity="danger"
+          onDismiss={() => {}}
+        />
+      ))}
+
+      {/* Default Alert Banner */}
+      {showAlert && (!weather?.alerts || weather.alerts.length === 0) && (
+        <AlertBanner
+          title={loading ? "Loading Weather Data..." : weather ? `Weather: ${weather.current.weather_description}` : "Weather Alert"}
+          message={loading ? "Fetching real-time weather information for your location." : weather ? `Current conditions in ${weather.current.location}, ${weather.current.country}` : "Unable to fetch weather data. Please check your connection."}
+          severity={loading ? "info" : weather ? "info" : "warning"}
           onDismiss={() => setShowAlert(false)}
         />
       )}
 
       {/* Status Overview */}
       <section>
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-          <Shield className="w-5 h-5 text-primary" />
-          Current Status
-        </h2>
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard
-            title="Risk Level"
-            value="Moderate"
-            icon={AlertTriangle}
-            variant="warning"
-          />
-          <StatCard
-            title="Active Alerts"
-            value="3"
-            icon={AlertTriangle}
-            variant="danger"
-          />
-          <StatCard
-            title="Weather"
-            value="Stormy"
-            icon={CloudRain}
-            variant="warning"
-          />
-          <StatCard
-            title="Wind Speed"
-            value="45 km/h"
-            icon={Wind}
-            variant="default"
-          />
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            Current Status
+          </h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={refresh}
+            disabled={loading}
+            className="h-8 w-8 p-0"
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+          </Button>
         </div>
+        
+        {loading ? (
+          <div className="grid grid-cols-2 gap-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 bg-muted animate-pulse rounded-xl" />
+            ))}
+          </div>
+        ) : error ? (
+          <div className="p-4 bg-destructive/10 rounded-xl text-destructive text-sm">
+            {error}. <button onClick={refresh} className="underline">Retry</button>
+          </div>
+        ) : weather ? (
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard
+              title="Risk Level"
+              value={risk.level}
+              icon={AlertTriangle}
+              variant={risk.variant}
+            />
+            <StatCard
+              title="Active Alerts"
+              value={String(weather.alerts.length)}
+              icon={AlertTriangle}
+              variant={weather.alerts.length > 0 ? "danger" : "success"}
+            />
+            <StatCard
+              title="Weather"
+              value={weather.current.weather}
+              icon={WeatherIconComponent}
+              variant={weather.current.weather.toLowerCase().includes('rain') || weather.current.weather.toLowerCase().includes('storm') ? "warning" : "default"}
+            />
+            <StatCard
+              title="Wind Speed"
+              value={`${weather.current.wind_speed} km/h`}
+              icon={Wind}
+              variant={weather.current.wind_speed > 50 ? "warning" : "default"}
+            />
+          </div>
+        ) : null}
       </section>
 
       {/* Quick Actions */}
@@ -78,34 +156,122 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
 
       {/* Weather Insights */}
       <section className="bg-card rounded-xl p-4 border border-border">
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-          <CloudRain className="w-5 h-5 text-primary" />
-          Weather Insights
-        </h2>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="text-center p-3 bg-muted/50 rounded-lg">
-            <Thermometer className="w-5 h-5 mx-auto text-primary mb-1" />
-            <p className="text-xs text-muted-foreground">Temperature</p>
-            <p className="font-semibold">24°C</p>
-          </div>
-          <div className="text-center p-3 bg-muted/50 rounded-lg">
-            <Droplets className="w-5 h-5 mx-auto text-primary mb-1" />
-            <p className="text-xs text-muted-foreground">Humidity</p>
-            <p className="font-semibold">78%</p>
-          </div>
-          <div className="text-center p-3 bg-muted/50 rounded-lg">
-            <Eye className="w-5 h-5 mx-auto text-primary mb-1" />
-            <p className="text-xs text-muted-foreground">Visibility</p>
-            <p className="font-semibold">5 km</p>
-          </div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <CloudRain className="w-5 h-5 text-primary" />
+            Weather Insights
+          </h2>
+          {weather && (
+            <span className="text-xs text-muted-foreground">
+              {weather.current.location}, {weather.current.country}
+            </span>
+          )}
         </div>
-        <div className="mt-3 p-3 bg-warning/10 rounded-lg border border-warning/20">
-          <p className="text-sm text-warning-foreground flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-warning" />
-            Heavy rain expected in the next 2 hours
-          </p>
-        </div>
+        
+        {loading ? (
+          <div className="grid grid-cols-3 gap-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-20 bg-muted animate-pulse rounded-lg" />
+            ))}
+          </div>
+        ) : weather ? (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <Thermometer className="w-5 h-5 mx-auto text-primary mb-1" />
+                <p className="text-xs text-muted-foreground">Temperature</p>
+                <p className="font-semibold">{weather.current.temperature}°C</p>
+                <p className="text-xs text-muted-foreground">Feels {weather.current.feels_like}°C</p>
+              </div>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <Droplets className="w-5 h-5 mx-auto text-primary mb-1" />
+                <p className="text-xs text-muted-foreground">Humidity</p>
+                <p className="font-semibold">{weather.current.humidity}%</p>
+              </div>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <Eye className="w-5 h-5 mx-auto text-primary mb-1" />
+                <p className="text-xs text-muted-foreground">Visibility</p>
+                <p className="font-semibold">{weather.current.visibility} km</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-3 mt-3">
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <Gauge className="w-5 h-5 mx-auto text-primary mb-1" />
+                <p className="text-xs text-muted-foreground">Pressure</p>
+                <p className="font-semibold">{weather.current.pressure} hPa</p>
+              </div>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <Cloud className="w-5 h-5 mx-auto text-primary mb-1" />
+                <p className="text-xs text-muted-foreground">Cloud Cover</p>
+                <p className="font-semibold">{weather.current.clouds}%</p>
+              </div>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <Wind className="w-5 h-5 mx-auto text-primary mb-1" />
+                <p className="text-xs text-muted-foreground">Wind</p>
+                <p className="font-semibold">{weather.current.wind_speed} km/h</p>
+              </div>
+            </div>
+
+            {/* Weather Description */}
+            <div className="mt-3 p-3 bg-primary/10 rounded-lg border border-primary/20">
+              <p className="text-sm text-foreground flex items-center gap-2 capitalize">
+                <WeatherIconComponent className="w-4 h-4 text-primary" />
+                {weather.current.weather_description}
+              </p>
+            </div>
+
+            {/* Warning if severe weather */}
+            {(weather.current.weather.toLowerCase().includes('rain') || 
+              weather.current.weather.toLowerCase().includes('storm') ||
+              weather.current.weather.toLowerCase().includes('thunder') ||
+              weather.current.wind_speed > 40) && (
+              <div className="mt-3 p-3 bg-warning/10 rounded-lg border border-warning/20">
+                <p className="text-sm text-warning-foreground flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-warning" />
+                  {weather.current.weather.toLowerCase().includes('thunder') 
+                    ? 'Thunderstorm detected - seek shelter immediately'
+                    : weather.current.weather.toLowerCase().includes('rain')
+                    ? 'Rain in your area - be cautious while traveling'
+                    : weather.current.wind_speed > 40
+                    ? 'High winds detected - avoid open areas'
+                    : 'Weather conditions require caution'}
+                </p>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-4 text-muted-foreground">
+            Unable to load weather data
+          </div>
+        )}
       </section>
+
+      {/* 5-Day Forecast */}
+      {weather && weather.forecast.length > 0 && (
+        <section className="bg-card rounded-xl p-4 border border-border">
+          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <CloudSun className="w-5 h-5 text-primary" />
+            Forecast
+          </h2>
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {weather.forecast.map((day, index) => {
+              const ForecastIcon = getWeatherIcon(day.weather);
+              const date = new Date(day.date * 1000);
+              return (
+                <div key={index} className="flex-shrink-0 text-center p-3 bg-muted/50 rounded-lg min-w-[80px]">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    {index === 0 ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short' })}
+                  </p>
+                  <ForecastIcon className="w-6 h-6 mx-auto text-primary mb-1" />
+                  <p className="text-xs font-medium">{day.temp_max}°</p>
+                  <p className="text-xs text-muted-foreground">{day.temp_min}°</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Nearby Resources */}
       <section className="bg-card rounded-xl p-4 border border-border">
@@ -254,11 +420,11 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
         </h2>
         <div className="space-y-3">
           {[
-            { time: "2 min ago", event: "Weather alert updated", type: "info" },
-            { time: "15 min ago", event: "Location synced", type: "success" },
+            { time: "Just now", event: weather ? `Weather: ${weather.current.weather_description}` : "Fetching weather...", type: "info" },
+            { time: "2 min ago", event: "Location synced", type: "success" },
+            { time: "15 min ago", event: "Weather data refreshed", type: "info" },
             { time: "1 hr ago", event: "Emergency contact verified", type: "success" },
             { time: "2 hr ago", event: "Shelter locations updated", type: "info" },
-            { time: "3 hr ago", event: "New evacuation route added", type: "warning" },
           ].map((item, index) => (
             <div key={index} className="flex items-center gap-3 text-sm">
               <span className={`w-2 h-2 rounded-full ${
